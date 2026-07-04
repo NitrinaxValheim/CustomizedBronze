@@ -59,7 +59,7 @@
 * **CHANGED:**
     * Replaced explicit empty string initialization (`""`) for plugin and file arrays with `Array.Empty<string>()` to improve type safety and reduce allocations.
 
-* Version 0.0.20
+# Version 0.0.20
 
     + updated for Valheim 0.217.25
 
