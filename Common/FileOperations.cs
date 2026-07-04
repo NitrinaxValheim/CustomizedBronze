@@ -33,8 +33,8 @@ namespace Common
     public class FileOperations
     {
 
-        #region[checkPluginDependencies]
-        public static Boolean checkPluginDependencies(string[] plugins)
+        #region[CheckRequiredPluginDependencies]
+        public static Boolean CheckRequiredPluginDependencies(string[] plugins)
         {
 
             bool allPluginsFound = true;
@@ -43,26 +43,17 @@ namespace Common
             {
 
 #if (DEBUG)
-                Logger.LogInfo("plugin = " + plugin);
+                Logger.LogInfo("CheckRequiredPluginDependencies = " + plugin);
 #endif
 
                 string[] entries = Directory.GetFiles(@BepInEx.Paths.PluginPath, plugin, SearchOption.AllDirectories);
 
-                foreach (string entry in entries)
+                if (entries.Length == 0)
                 {
 
-#if (DEBUG)
-                    Logger.LogInfo("entry = " + entry);
-#endif
+                    Logger.LogInfo("Needed plugin " + plugin + " not installed.");
 
-                    if (!entry.Contains(plugin))
-                    {
-
-                        Logger.LogInfo("Needed plugin " + plugin + " not installed.");
-
-                        allPluginsFound = false;
-
-                    }
+                    allPluginsFound = false;
 
                 }
 
@@ -74,7 +65,7 @@ namespace Common
         #endregion
 
         #region[checkFileDependencies]
-        public static Boolean checkFileDependencies(string[] files)
+        public static Boolean CheckFileDependencies(string[] files)
         {
 
             bool allFilesFound = true;
@@ -82,10 +73,10 @@ namespace Common
             foreach (string file in files)
             {
 
-                var fileName = BepInEx.Paths.PluginPath + Path.DirectorySeparatorChar + Data.Namespace + Path.DirectorySeparatorChar + file;
+                var fileName = Path.Combine(BepInEx.Paths.PluginPath, Data.Namespace, file);
 
 #if (DEBUG)
-                Logger.LogInfo("fileName = " + fileName);
+                Logger.LogInfo("CheckFileDependencies = " + fileName);
 #endif
 
                 if (File.Exists(fileName) == false)
@@ -100,6 +91,37 @@ namespace Common
             }
 
             return allFilesFound;
+
+        }
+        #endregion
+
+        #region[CheckRecommendedPluginDependencies]
+        public static int CheckRecommendedPluginDependencies(string[,] plugins)
+        {
+            int missingCount = 0;
+
+            for (int i = 0; i < plugins.GetLength(0); i++)
+            {
+                string fileName = plugins[i, 0];
+                string fileComment = plugins[i, 1];
+
+#if (DEBUG)
+                Logger.LogInfo("CheckRecommendedPluginDependencies = " + fileName);
+#endif
+
+                string[] found = Directory.GetFiles(BepInEx.Paths.PluginPath, fileName, SearchOption.AllDirectories);
+
+                if (found.Length == 0)
+                {
+                    missingCount++;
+
+                    Logger.LogInfo("Recommended plugin " + fileName + " (" + fileComment + ") not installed.");
+
+                }
+
+            }
+
+            return missingCount;
 
         }
         #endregion

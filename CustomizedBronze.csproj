@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net481</TargetFramework>
     <AssemblyName>CustomizedBronze</AssemblyName>
     <Description></Description>
     <Version>0.0.1.1</Version>
@@ -18,12 +18,25 @@
 
   <ItemGroup>
     <Compile Remove="Dist\**" />
+    <Compile Remove="Docs\**" />
     <EmbeddedResource Remove="Dist\**" />
+    <EmbeddedResource Remove="Docs\**" />
     <None Remove="Dist\**" />
+    <None Remove="Docs\**" />
   </ItemGroup>
 
   <ItemGroup>
     <None Remove=".gitattributes" />
+    <None Remove=".gitignore" />
+    <None Remove="DoPrebuild.props" />
+    <None Remove="Environment.props" />
+    <None Remove="LICENSE" />
+    <None Remove="manifest.json" />
+    <None Remove="NuGet.Config" />
+    <None Remove="publish.bat" />
+    <None Remove="publish.log" />
+    <None Remove="publish.ps1" />
+    <None Remove="README.md" />
     <None Remove="TODO.txt" />
   </ItemGroup>
 
@@ -38,28 +51,24 @@
   
   <ItemGroup>
     <Reference Include="assembly_valheim">
-      <HintPath>..\DevSources\Assemblys\Valheim 0.217.25\valheim_Data\Managed\publicized_assemblies\assembly_valheim_publicized.dll</HintPath>
+      <HintPath>E:\Steam\steamapps\common\Valheim\Valheim_Data\Managed\publicized_assemblies\assembly_valheim_publicized.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>..\DevSources\Libraries\BepInEx\denikson-BepInExPack_Valheim-5.4.2200\BepInExPack_Valheim\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>E:\Steam\steamapps\common\Valheim\BepInEx\core\BepInEx.dll</HintPath>
     </Reference>
     <Reference Include="Jotunn">
-      <HintPath>..\DevSources\Libraries\ValheimModding-Jotunn-2.14.5\plugins\Jotunn.dll</HintPath>
+      <HintPath>E:\Steam\steamapps\common\Valheim\BepInEx\plugins\Jotunn.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
     <Reference Include="UnityEngine">
-      <HintPath>..\DevSources\Unstripped_corlib\2020.3.45\unstripped_corlib\UnityEngine.dll</HintPath>
+      <HintPath>E:\Steam\steamapps\common\Valheim\Valheim_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\DevSources\Unstripped_corlib\2020.3.45\unstripped_corlib\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>E:\Steam\steamapps\common\Valheim\Valheim_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
   </ItemGroup>
     
   <ItemGroup>
     <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
   </ItemGroup>
-  
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="call publish.bat $(Configuration) $(ProjectDir) $(ProjectName)" />
-  </Target>
 </Project>

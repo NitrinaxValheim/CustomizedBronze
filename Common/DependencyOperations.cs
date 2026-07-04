@@ -3,12 +3,13 @@ using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using System.Reflection;
 
 // BepInEx
 using BepInEx;
+
+using Logger = Jotunn.Logger;
 
 using Plugin;
 
@@ -21,64 +22,59 @@ namespace Common
 
             bool dependenciesError = false;
 
-            //PluginDependencies.Dependencies.EngineName;
-            //PluginDependencies.Dependencies.EngineVersion;
+            //Plugin.Dependencies.GameName
+            //Plugin.Dependencies.GameVersion
             if (VersionOperations.CheckVersionWithOutput(
                 pluginName,
-                Plugin.Dependencies.EngineName,
-                VersionOperations.GetEngineVersion(),
-                Plugin.Dependencies.EngineVersion
-                ) == false) { dependenciesError = true;  }
-
-            //PluginDependencies.Dependencies.GameName
-            //PluginDependencies.Dependencies.GameVersion
-            if (VersionOperations.CheckVersionWithOutput(
-                pluginName,
-                Plugin.Dependencies.GameName,
+                Dependencies.GameName,
                 VersionOperations.GetGameVersion(),
-                Plugin.Dependencies.GameVersion
+                Dependencies.GameVersion
                 ) == false) { dependenciesError = true; }
 
-            //PluginDependencies.Dependencies.BepInExName
-            //PluginDependencies.Dependencies.BepInExVersion
+            //Plugin.Dependencies.BepInExName
+            //Plugin.Dependencies.BepInExVersion
             if (VersionOperations.CheckVersionWithOutput(
                 pluginName,
-                Plugin.Dependencies.BepInExName,
+                Dependencies.BepInExName,
                 VersionOperations.GetBepinExVersion(),
-                Plugin.Dependencies.BepInExVersion
+                Dependencies.BepInExVersion
                 ) == false) { dependenciesError = true; }
 
-            //PluginDependencies.Dependencies.IsJotunnRequired
-            //PluginDependencies.Dependencies.JotunnName
-            //PluginDependencies.Dependencies.JotunnVersion
-            if (Plugin.Dependencies.IsJotunnRequired == true)
+            //Plugin.Dependencies.IsJotunnRequired
+            //Plugin.Dependencies.JotunnName
+            //Plugin.Dependencies.JotunnVersion
+            if (Dependencies.IsJotunnRequired == true)
             {
                 if (VersionOperations.CheckVersionWithOutput(
                     pluginName,
-                    Plugin.Dependencies.JotunnName,
+                    Dependencies.JotunnName,
                     VersionOperations.GetJotunnVersion(),
-                    Plugin.Dependencies.JotunnVersion
+                    Dependencies.JotunnVersion
                     ) == false) { dependenciesError = true; }
             }
 
-            //PluginDependencies.Dependencies.IsOtherPluginsRequired
-            //PluginDependencies.Dependencies.RequiredPlugins
-            if (Plugin.Dependencies.IsOtherPluginsRequired == true)
+            //Plugin.Dependencies.RequiredPlugins
+            if (Dependencies.RequiredPlugins.Length > 0)
             {
-
-                if (FileOperations.checkPluginDependencies(
-                    Plugin.Dependencies.RequiredPlugins
-                    ) == false) { dependenciesError = true; }
-
+                if (!FileOperations.CheckRequiredPluginDependencies(Dependencies.RequiredPlugins))
+                {  
+                    dependenciesError = true;
+                }
             }
 
-            //PluginDependencies.Dependencies.IsFilesRequired
-            //PluginDependencies.Dependencies.RequiredFiles
-            if (Plugin.Dependencies.IsFilesRequired == true)
+            //Plugin.Dependencies.RequiredFiles
+            if (Dependencies.RequiredFiles.Length > 0)
             {
-                if (FileOperations.checkPluginDependencies(
-                    Plugin.Dependencies.RequiredFiles
-                    ) == false) { dependenciesError = true; }
+                if (!FileOperations.CheckFileDependencies(Dependencies.RequiredFiles))
+                { 
+                    dependenciesError = true;
+                }
+            }
+
+            //Plugin.Dependencies.RequiredFiles
+            if (Dependencies.RecommendedPlugins.Length > 0 && FileOperations.CheckRecommendedPluginDependencies(Dependencies.RecommendedPlugins) > 0)
+            {
+                Logger.LogInfo("Some recommended plugins could not be found. The mod's functionality may be limited.");
             }
 
             return dependenciesError;

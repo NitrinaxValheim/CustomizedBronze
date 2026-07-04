@@ -1,11 +1,8 @@
 ﻿// System
 using System;
-using System.IO;
-using System.Collections;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
-using System.Reflection;
+using System.ComponentModel;
 
 // UnityEngine
 using UnityEngine;
@@ -18,22 +15,13 @@ using BepInEx.Configuration;
 using Jotunn.Managers;
 using Jotunn.Utils;
 using Jotunn.Entities;
-using Jotunn.Configs;
-using Jotunn.GUI;
 using Logger = Jotunn.Logger;
 
-////  functions
-
 using Common;
-
 using Plugin;
-using System.ComponentModel;
-using System.Text;
-using System.Numerics;
 
 namespace CustomizedBronze
 {
-
     // setup plugin data
     [BepInPlugin(Data.ModGuid, Data.ModName, Data.Version)]
 
@@ -45,161 +33,181 @@ namespace CustomizedBronze
 
     // check compatibility level
     [NetworkCompatibility(CompatibilityLevel.ClientMustHaveMod, VersionStrictness.Patch)]
-
     internal class CustomizedBronze : BaseUnityPlugin
     {
+        // Config strings
+        private const string ConfigCategoryRecipeAlloy = "Recipe Alloy";
+        private const string ConfigCategoryRecipeCustom = "Recipe Custom";
 
-        // public values
+        private static readonly string ConfigEntryAttention =
+            "Please note: Changes to the recipe are applied immediately (no relog required).";
 
-        // info for valheim/bepinex that the game is modded
-        public static bool isModded = true;
+        private static readonly string ConfigEntryRecipeAlloyDescription =
+            $"Alloy composition:{Environment.NewLine}" +
+            $"({ConfigEntryAttention}){Environment.NewLine}{Environment.NewLine}" +
+            "Default = the standard alloy from Valheim (2 Copper + 1 Tin = 1 Bronze)" +
+            "[If you select this preset, your custom settings will be ignored.]" +
+            $"{Environment.NewLine}{Environment.NewLine}" +
+            "WoWlike = an alloy like in World of Warcraft (1 Copper + 1 Tin = 2 Bronze)" +
+            "[If you select this preset, your custom settings will be ignored.]" +
+            $"{Environment.NewLine}{Environment.NewLine}" +
+            "Realistic = a more realistic alloy (2 Copper + 1 Tin = 3 Bronze)" +
+            "[If you select this preset, your custom settings will be ignored.]" +
+            $"{Environment.NewLine}{Environment.NewLine}" +
+            "Custom = a custom alloy with the mixing ratio you set" +
+            "[If you select this, your custom settings will be used.]";
 
-        // private values
+        private static readonly string ConfigEntryRecipeCustomCopperDescription =
+            "Sets amount of needed Copper.";
 
-        // new line
-        private readonly static string s_CRLF = Environment.NewLine;
-        private readonly static string s_CRLF2 = Environment.NewLine + Environment.NewLine;
+        private static readonly string ConfigEntryRecipeCustomTinDescription =
+            "Sets amount of needed Tin.";
 
-        // config
+        private static readonly string ConfigEntryRecipeCustomBronzeDescription =
+            "Sets the amount of Bronze produced.";
 
-        // enum for BronzeAlloy
-        public enum BronzeAlloy
-        {
+        // Presets
+        private static readonly int[] DefaultAlloy = { 2, 1, 1 };
+        private static readonly int[] WoWlikeAlloy = { 1, 1, 2 };
+        private static readonly int[] RealisticAlloy = { 2, 1, 3 };
 
-            [Description("Default")]
-            Default = 0,
-
-            [Description("WoWlike")]
-            WoWlike,
-
-            [Description("Realistic")]
-            Realistic,
-
-            [Description("Custom")]
-            Custom
-
-        };
-
-        // presets
-        private static int[] DefaultAlloy = { 2, 1, 1 };
-        private static int[] WoWlikeAlloy = { 1, 1, 2 };
-        private static int[] RealisticAlloy = { 2, 1, 3 };
-
-        // config strings
-        private static string ConfigCategoryRecipeAlloy = "Recipe Alloy";
-
-        private static string ConfigEntryAttention = "Please note: After changing settings, you must log out and log in for the changes to be applied.";
-
-        private static string ConfigEntryRecipeAlloy = "Alloy Type";
-        private static string ConfigEntryRecipeAlloyDescription =
-            "Alloy composition:" + s_CRLF +
-            "(" + ConfigEntryAttention + ")" + s_CRLF2 +
-
-            "Default = the standard alloy from Valheim" + s_CRLF +
-            "(2 Copper + 1 Tin = 1 Bronze)" + s_CRLF +
-            "[If you select this preset, your custom settings will be ignored.]" + s_CRLF2 +
-
-            "WoWlike = an alloy like in World of Warcraft" + s_CRLF +
-            "(50 percent alloy, 1 Copper + 1 Tin = 2 Bronze)" + s_CRLF +
-            "[If you select this preset, your custom settings will be ignored.]" + s_CRLF2 +
-
-            "Realistic = a more realistic alloy" + s_CRLF +
-            "(60 percent alloy, 2 Copper + 1 Tin = 3 Bronze)" + s_CRLF +
-            "[If you select this preset, your custom settings will be ignored.]" + s_CRLF2 +
-
-            "Custom = a custom alloy with the mixing ratio you set " + s_CRLF +
-            "[If you select this, your custom settings will be used.]" + s_CRLF;
-
-        private static string ConfigCategoryRecipeCustom = "Recipe Custom";
-
-        private static string ConfigEntryRecipeCustomCopper = "Required Copper";
-        private static string ConfigEntryRecipeCustomCopperDescription = "Sets amount of needed of Copper.";
-
-        private static string ConfigEntryRecipeCustomTin = "Required Tin";
-        private static string ConfigEntryRecipeCustomTinDescription = "Sets amount of needed of Tin.";
-
-        private static string ConfigEntryRecipeCustomBronze = "Produced Bronze";
-        private static string ConfigEntryRecipeCustomBronzeDescription = "Sets the amount of bronze produced.";
-
-        // Configuration values
+        // Configuration entries
         public static ConfigEntry<bool> configModEnabled;
         public static ConfigEntry<int> configNexusID;
         public static ConfigEntry<bool> configShowChangesAtStartup;
-
         public static ConfigEntry<BronzeAlloy> configBronzeAlloy;
-
         public static ConfigEntry<int> configRecipeNeededCopper;
         public static ConfigEntry<int> configRecipeNeededTin;
         public static ConfigEntry<int> configRecipeProducedBronze;
 
-        private int usedRequirementCopper = 0;
-        private int usedRequirementTin = 0;
-        private int usedQuantityBronze = 0;
+        private int usedRequirementCopper;
+        private int usedRequirementTin;
+        private int usedQuantityBronze;
 
-        #region[Awake]
+        // Prefab cache (optional performance improvement)
+        private ItemDrop copperPrefab;
+        private ItemDrop tinPrefab;
+
+        // Store original recipe data for reset
+        private Dictionary<string, (Piece.Requirement[] resources, int amount)> originalRecipes
+            = new Dictionary<string, (Piece.Requirement[], int)>();
+
+        // Flag to control startup logging
+        private static bool firstUpdate = true;
+        private static bool showChanges = true;
+
+        private List<Recipe> bronzeRecipes = new List<Recipe>();
+
+        #region[Unity Lifecycle]
         private void Awake()
         {
+            if (DependencyOperations.CheckForDependencyErrors(Data.ModGuid))
+                return;
 
-            if (DependencyOperations.CheckForDependencyErrors(PluginInfo.PLUGIN_GUID) == false)
+            CreateConfigValues();
+            SubscribeToConfigChanges();
+
+            ItemManager.OnItemsRegistered += OnItemsRegistered;
+
+            if (!configModEnabled.Value)
+            {
+                Logger.LogWarning($"{Data.Company} {Data.ModName} v{Data.Version} is loaded but disabled by config.");
+            }
+            else
+            {
+                Logger.LogInfo($"{Data.Company} {Data.ModName} v{Data.Version} loaded.");
+            }
+        }
+
+        private void OnDestroy()
+        {
+            // Unsubscribe events to prevent memory leaks
+            configModEnabled.SettingChanged -= OnConfigChanged;
+            configBronzeAlloy.SettingChanged -= OnConfigChanged;
+            configRecipeNeededCopper.SettingChanged -= OnConfigChanged;
+            configRecipeNeededTin.SettingChanged -= OnConfigChanged;
+            configRecipeProducedBronze.SettingChanged -= OnConfigChanged;
+            ItemManager.OnItemsRegistered -= OnItemsRegistered;
+            SynchronizationManager.OnConfigurationSynchronized -= OnConfigurationSynchronized;
+        }
+        #endregion
+
+        #region[Event Handlers]
+        private void OnItemsRegistered()
+        {
+            try
             {
 
-                CreateConfigValues();
+                InitializeRecipeCache();
 
-                bool modEnabled = (bool)Config[Data.ConfigCategoryGeneral, Data.ConfigEntryEnabled].BoxedValue;
-
-                if (modEnabled == true)
-                {
-
-                    // ##### plugin startup logic #####
-
-#if (DEBUG)
-                    Jotunn.Logger.LogInfo("Loading start");
+                if (configModEnabled.Value)
+                    UpdateBronzeRecipe();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error in OnItemsRegistered: {ex.Message}");
+#if DEBUG
+                Logger.LogError($"StackTrace: {ex.StackTrace}");
 #endif
+            }
+            finally
+            {
+                // Unsubscribe after first execution (only needed once)
+                ItemManager.OnItemsRegistered -= OnItemsRegistered;
+            }
+        }
 
-                    // Event System
+        // Named event handler for config sync
+        private void OnConfigurationSynchronized(object sender, ConfigurationSynchronizationEventArgs args)
+        {
+            Logger.LogMessage(args.InitialSynchronization
+                ? "Initial Config sync event received"
+                : "Config sync event received");
+        }
 
-                    // ItemManager
-                    ItemManager.OnItemsRegistered += OnItemsRegistered;
-   
-                    // ##### info functions #####
+        private void OnConfigChanged(object sender, EventArgs e)
+        {
 
-#if (DEBUG)
-                    Jotunn.Logger.LogInfo("Loading done");
-#endif
-
-                    // Game data
-#if (DEBUG)
-                    Logger.LogInfo($"{PluginInfo.PLUGIN_GUID} is active.");
-#endif
-
-                }
-                else
-                {
-
-                    Logger.LogInfo($"{PluginInfo.PLUGIN_GUID} is disabled by config.");
-
-                }
-
+            // Mod disabled → restore original recipes
+            if (!configModEnabled.Value)
+            {
+                
+                RestoreOriginalRecipes();
+                return;
             }
 
-        }
-        #endregion
+            // If the mod has never been initialized (bronzeRecipes is empty),
+            // we need to do so now, since the user has activated the mod.
+            if (bronzeRecipes.Count == 0)
+            {
+                InitializeRecipeCache();
+            }            
 
-        #region[Update]
-        private void Update()
+            // Mod enabled → apply current settings
+            UpdateBronzeRecipe();
+        }
+
+        private void InitializeRecipeCache()
         {
+            // Extract the initialization logic into a separate method
+            if (ObjectDB.instance != null && ObjectDB.instance.m_recipes != null)
+            {
+                bronzeRecipes = ObjectDB.instance.m_recipes
+                    .Where(r => r.m_item?.name == "Bronze")
+                    .ToList();
+
+                foreach (var recipe in bronzeRecipes)
+                {
+                    SaveOriginalRecipe(recipe);
+                }
+            }
         }
+
         #endregion
 
-        #region[CreateConfigValues]
-        // Create some sample configuration values
+        #region[Configuration]
         private void CreateConfigValues()
         {
-
-#if (DEBUG)
-            Logger.LogInfo("CreateConfigValues");
-#endif
-
             Config.SaveOnConfigSet = true;
 
             configModEnabled = Config.Bind(
@@ -208,11 +216,7 @@ namespace CustomizedBronze
                 Data.ConfigEntryEnabledDefaultState,
                 new ConfigDescription(Data.ConfigEntryEnabledDescription,
                     null,
-                    new ConfigurationManagerAttributes
-                    {
-                        Order = 0,
-                    })
-            );
+                    new ConfigurationManagerAttributes { Order = 0 }));
 
             configNexusID = Config.Bind(
                 Data.ConfigCategoryGeneral,
@@ -225,9 +229,7 @@ namespace CustomizedBronze
                         Browsable = false,
                         Order = 1,
                         ReadOnly = true
-                    }
-                )
-            );
+                    }));
 
             configShowChangesAtStartup = Config.Bind(
                 Data.ConfigCategoryPlugin,
@@ -235,16 +237,11 @@ namespace CustomizedBronze
                 Data.ConfigEntryShowChangesAtStartupDefaultState,
                 new ConfigDescription(Data.ConfigEntryShowChangesAtStartupDescription,
                     null,
-                    new ConfigurationManagerAttributes
-                    {
-                        Order = 0
-                    }
-                )
-            );
+                    new ConfigurationManagerAttributes { Order = 0 }));
 
             configBronzeAlloy = Config.Bind(
                 ConfigCategoryRecipeAlloy,
-                ConfigEntryRecipeAlloy,
+                "Alloy Type",
                 BronzeAlloy.Default,
                 new ConfigDescription(ConfigEntryRecipeAlloyDescription,
                     null,
@@ -252,275 +249,221 @@ namespace CustomizedBronze
                     {
                         DefaultValue = BronzeAlloy.Default,
                         Order = 1,
-                        DispName = ConfigEntryRecipeAlloy + s_CRLF2 + ConfigEntryAttention,
-                    }
-                )
-            );
+                        DispName = $"Alloy Type{Environment.NewLine}{Environment.NewLine}{ConfigEntryAttention}"
+                    }));
 
             configRecipeNeededCopper = Config.Bind(
                 ConfigCategoryRecipeCustom,
-                ConfigEntryRecipeCustomCopper,
+                "Required Copper",
                 DefaultAlloy[0],
                 new ConfigDescription(ConfigEntryRecipeCustomCopperDescription,
                     null,
-                    new ConfigurationManagerAttributes
-                    {
-                        Order = 0
-                    }
-                )
-            );
+                    new ConfigurationManagerAttributes { Order = 0 }));
 
             configRecipeNeededTin = Config.Bind(
                 ConfigCategoryRecipeCustom,
-                ConfigEntryRecipeCustomTin,
+                "Required Tin",
                 DefaultAlloy[1],
                 new ConfigDescription(ConfigEntryRecipeCustomTinDescription,
                     null,
-                    new ConfigurationManagerAttributes
-                    {
-                        Order = 1
-                    }
-                )
-            );
+                    new ConfigurationManagerAttributes { Order = 1 }));
 
             configRecipeProducedBronze = Config.Bind(
                 ConfigCategoryRecipeCustom,
-                ConfigEntryRecipeCustomBronze,
+                "Produced Bronze",
                 DefaultAlloy[2],
                 new ConfigDescription(ConfigEntryRecipeCustomBronzeDescription,
                     null,
-                    new ConfigurationManagerAttributes
-                    {
-                        Order = 2
-                    }                    
-                )                
-            );
+                    new ConfigurationManagerAttributes { Order = 2 }));
 
-            // You can subscribe to a global event when config got synced initially and on changes
-            SynchronizationManager.OnConfigurationSynchronized += (obj, attr) =>
-            {
-
-                if (attr.InitialSynchronization)
-                {
-
-                    Jotunn.Logger.LogMessage("Initial Config sync event received");
-
-                }
-                else
-                {
-
-                    Jotunn.Logger.LogMessage("Config sync event received");
-
-                }
-
-            };
-
+            // Use a named method instead of anonymous handler
+            SynchronizationManager.OnConfigurationSynchronized += OnConfigurationSynchronized;
         }
-        #endregion
+        private void SubscribeToConfigChanges()
+        {
+            configModEnabled.SettingChanged += OnConfigChanged;
+            configBronzeAlloy.SettingChanged += OnConfigChanged;
+            configRecipeNeededCopper.SettingChanged += OnConfigChanged;
+            configRecipeNeededTin.SettingChanged += OnConfigChanged;
+            configRecipeProducedBronze.SettingChanged += OnConfigChanged;
+        }
 
-        #region[ReadConfigValues]
         private void ReadConfigValues()
         {
+            showChanges = configShowChangesAtStartup.Value && firstUpdate;
+            if (showChanges) firstUpdate = false; // only log once per session
 
-#if (DEBUG)
-            Logger.LogInfo("ReadConfigValues");
-#endif
+            BronzeAlloy preset = configBronzeAlloy.Value;
 
-            // get state of showChangesAtStartup
-            bool showChangesAtStartup = (bool)Config[Data.ConfigCategoryPlugin, Data.ConfigEntryShowChangesAtStartup].BoxedValue;
-
-            // get BronzeAlloy config option
-            BronzeAlloy bronzePreset = (BronzeAlloy)Config[ConfigCategoryRecipeAlloy, ConfigEntryRecipeAlloy].BoxedValue;
-
-            // check enum config option
-            switch (bronzePreset)
+            switch (preset)
             {
-
                 case BronzeAlloy.Default:
-
-                    if (showChangesAtStartup == true) { Logger.LogInfo("Default option selected"); }
-                    usedRequirementCopper = DefaultAlloy[0];
-                    usedRequirementTin = DefaultAlloy[1];
-                    usedQuantityBronze = DefaultAlloy[2];
-
+                    if (showChanges) Logger.LogInfo("Default option selected");
+                        usedRequirementCopper = DefaultAlloy[0];
+                        usedRequirementTin = DefaultAlloy[1];
+                        usedQuantityBronze = DefaultAlloy[2];
                     break;
 
                 case BronzeAlloy.WoWlike:
-
-                    if (showChangesAtStartup == true) { Logger.LogInfo("WoWlike option selected"); }
-                    usedRequirementCopper = WoWlikeAlloy[0];
-                    usedRequirementTin = WoWlikeAlloy[1];
-                    usedQuantityBronze = WoWlikeAlloy[2];
-
+                    if (showChanges) Logger.LogInfo("WoWlike option selected");
+                        usedRequirementCopper = WoWlikeAlloy[0];
+                        usedRequirementTin = WoWlikeAlloy[1];
+                        usedQuantityBronze = WoWlikeAlloy[2];
                     break;
 
                 case BronzeAlloy.Realistic:
-
-                    if (showChangesAtStartup == true) { Logger.LogInfo("Realistic option selected"); }
-                    usedRequirementCopper = RealisticAlloy[0];
-                    usedRequirementTin = RealisticAlloy[1];
-                    usedQuantityBronze = RealisticAlloy[2];
-
+                    if (showChanges) Logger.LogInfo("Realistic option selected");
+                        usedRequirementCopper = RealisticAlloy[0];
+                        usedRequirementTin = RealisticAlloy[1];
+                        usedQuantityBronze = RealisticAlloy[2];
                     break;
 
                 case BronzeAlloy.Custom:
-
-                    if (showChangesAtStartup == true) { Logger.LogInfo("Custom option selected"); }
-
-                    usedRequirementCopper = (int)Config[ConfigCategoryRecipeCustom, ConfigEntryRecipeCustomCopper].BoxedValue;
-                    usedRequirementTin = (int)Config[ConfigCategoryRecipeCustom, ConfigEntryRecipeCustomTin].BoxedValue;
-                    usedQuantityBronze = (int)Config[ConfigCategoryRecipeCustom, ConfigEntryRecipeCustomBronze].BoxedValue;
-
+                    if (showChanges) Logger.LogInfo("Custom option selected");
+                        // Validate custom values to avoid zero or negative amounts
+                        usedRequirementCopper = Math.Max(1, configRecipeNeededCopper.Value);
+                        usedRequirementTin = Math.Max(1, configRecipeNeededTin.Value);
+                        usedQuantityBronze = Math.Max(1, configRecipeProducedBronze.Value);
                     break;
 
                 default:
-
-                    if (showChangesAtStartup == true) { Logger.LogInfo("unknown option selected"); }
-
+                    if (showChanges) Logger.LogWarning($"Unknown alloy preset '{preset}', falling back to Default.");
+                        usedRequirementCopper = DefaultAlloy[0];
+                        usedRequirementTin = DefaultAlloy[1];
+                        usedQuantityBronze = DefaultAlloy[2];
                     break;
-
             }
 
-#if (DEBUG)
+#if DEBUG
             Logger.LogInfo(
-                        "usedRequirementCopper = " + usedRequirementCopper +
-                        ", usedRequirementTin = " + usedRequirementTin +
-                        ", usedQuantityBronze = " + usedQuantityBronze);
+                $"usedRequirementCopper = {usedRequirementCopper}, " +
+                $"usedRequirementTin = {usedRequirementTin}, " +
+                $"usedQuantityBronze = {usedQuantityBronze}");
 #endif
-
         }
 
         #endregion
 
-        #region[EventSystem]
-
-        // ItemManager
-        #region[OnItemsRegistered]
-        private void OnItemsRegistered()
+        #region[Recipe Update & Reset]
+        private void UpdateBronzeRecipe()
         {
-
-            try
-            {
-
-#if (DEBUG)
-                Logger.LogInfo("OnItemsRegistered");
-#endif
-
-                // read new quantities
-                ReadConfigValues();
-
-                // change recipe
-                ChangeBronzeRecipe();
-
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"Error OnItemsRegistered : {ex.Message}");
-#if (DEBUG)
-                Logger.LogError($"Data : {ex.Data}");
-                Logger.LogError($"HelpLink : {ex.HelpLink}");
-                Logger.LogError($"HResult : {ex.HResult}");
-                Logger.LogError($"InnerException : {ex.InnerException}");
-                Logger.LogError($"Source : {ex.Source}");
-                Logger.LogError($"StackTrace : {ex.StackTrace}");
-                Logger.LogError($"TargetSite : {ex.TargetSite}");
-#endif
-            }
-            finally
-            {
-                PrefabManager.OnPrefabsRegistered -= OnItemsRegistered;
-            }
-
+            ReadConfigValues();
+            ChangeBronzeRecipe();
         }
-        #endregion
 
-        #endregion
-
-        #region[ChangeBronzeRecipe]
         private void ChangeBronzeRecipe()
         {
-
-#if (DEBUG)
-            Logger.LogInfo("ChangeBronzeRecipe");
-#endif
-
-            // init vars
-            int requirementCopper = 0;
-            int requirementTin = 0;
-            int quantityBronze = 0;
-
-            // get state of showChangesAtStartup
-            bool showChangesAtStartup = (bool)Config[Data.ConfigCategoryPlugin, Data.ConfigEntryShowChangesAtStartup].BoxedValue;
-
-            // Recipe_Bronze
-            foreach (Recipe instanceMRecipe in ObjectDB.instance.m_recipes.Where(r => r.m_item?.name == "Bronze"))
+            if (ObjectDB.instance == null || ObjectDB.instance.m_recipes == null)
             {
-
-                if (instanceMRecipe.name == "Recipe_Bronze")
-                {
-
-                    requirementCopper = usedRequirementCopper;
-                    requirementTin = usedRequirementTin;
-                    quantityBronze = usedQuantityBronze;
-
-                    // requirements
-                    instanceMRecipe.m_resources = new Piece.Requirement[]
-                    {
-
-                        // set Quantity of needed copper
-                        new Piece.Requirement() { m_resItem = PrefabManager.Cache.GetPrefab<ItemDrop>("Copper"), m_amount = requirementCopper },
-
-                        // set Quantity of needed tin
-                        new Piece.Requirement() { m_resItem = PrefabManager.Cache.GetPrefab<ItemDrop>("Tin"), m_amount = requirementTin }
-
-                    };
-
-                    // set Quantity of produced bronze
-                    instanceMRecipe.m_amount = quantityBronze;
-
-                }
-
-                // Recipe_Bronze5
-                else if (instanceMRecipe.name == "Recipe_Bronze5")
-                {
-
-                    requirementCopper = usedRequirementCopper * 5;
-                    requirementTin = usedRequirementTin * 5;
-                    quantityBronze = usedQuantityBronze * 5;
-
-                    // requirements
-                    instanceMRecipe.m_resources = new Piece.Requirement[]
-                    {
-
-                        // set Quantity of needed copper
-                        new Piece.Requirement() { m_resItem = PrefabManager.Cache.GetPrefab<ItemDrop>("Copper"), m_amount = requirementCopper },
-
-                        // set Quantity of needed tin
-                        new Piece.Requirement() { m_resItem = PrefabManager.Cache.GetPrefab<ItemDrop>("Tin"), m_amount = requirementTin }
-
-                    };
-
-                    // set Quantity of produced bronze
-                    instanceMRecipe.m_amount = quantityBronze;
-
-                }
-
-                if (showChangesAtStartup == true)
-                {
-
-                    Jotunn.Logger.LogInfo($"changed " + instanceMRecipe.name +
-                        ", set Copper requirement to " + requirementCopper +
-                        ", set Tin requirement to " + requirementTin +
-                        ", set created quantity of Bronze to " + quantityBronze
-                        );
-
-                }
-
+                Logger.LogWarning("ObjectDB not ready, skipping recipe update.");
+                return;
             }
 
+            // Cache prefabs once
+            if (copperPrefab == null)
+                copperPrefab = PrefabManager.Cache.GetPrefab<ItemDrop>("Copper");
+            if (tinPrefab == null)
+                tinPrefab = PrefabManager.Cache.GetPrefab<ItemDrop>("Tin");
+
+            if (copperPrefab == null || tinPrefab == null)
+            {
+                Logger.LogError("Failed to get Copper or Tin prefab.");
+                return;
+            }
+
+            if (bronzeRecipes.Count > 0)
+            {
+                foreach (Recipe recipe in bronzeRecipes)
+                {
+                    try
+                    {
+                        int multiplier = recipe.name == "Recipe_Bronze" ? 1 : 5;
+                        int copperReq = usedRequirementCopper * multiplier;
+                        int tinReq = usedRequirementTin * multiplier;
+                        int bronzeQty = usedQuantityBronze * multiplier;
+
+                        recipe.m_resources = new[]
+                        {
+                        new Piece.Requirement { m_resItem = copperPrefab, m_amount = copperReq },
+                        new Piece.Requirement { m_resItem = tinPrefab, m_amount = tinReq }
+                    };
+                        recipe.m_amount = bronzeQty;
+
+                        if (showChanges)
+                        {
+                            Logger.LogInfo(
+                                $"Changed {recipe.name}: Copper = {copperReq}, Tin = {tinReq}, Bronze = {bronzeQty}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError($"Error updating recipe {recipe.name}: {ex.Message}");
+                    }
+                }
+            }
+            else
+            {
+                Logger.LogWarning($"Could not find any Bronze recipes.");
+            }
         }
+
+        // Save the original recipe data once (before any changes)
+        private void SaveOriginalRecipe(Recipe recipe)
+        {
+            if (recipe == null || string.IsNullOrEmpty(recipe.name))
+                return;
+
+            if (!originalRecipes.ContainsKey(recipe.name))
+            {
+                // Deep copy of the requirements array (Piece.Requirement is a class)
+                var reqCopy = new Piece.Requirement[recipe.m_resources?.Length ?? 0];
+                if (recipe.m_resources != null)
+                {
+                    for (int i = 0; i < recipe.m_resources.Length; i++)
+                    {
+                        var orig = recipe.m_resources[i];
+                        reqCopy[i] = new Piece.Requirement
+                        {
+                            m_resItem = orig.m_resItem,
+                            m_amount = orig.m_amount,
+                        };
+                    }
+                }
+                originalRecipes[recipe.name] = (reqCopy, recipe.m_amount);
+            }
+        }
+
+        // Restore all Bronze recipes to their original state
+        private void RestoreOriginalRecipes()
+        {
+            if (ObjectDB.instance == null || ObjectDB.instance.m_recipes == null)
+                return;
+
+            foreach (Recipe recipe in bronzeRecipes)
+            {
+                if (originalRecipes.TryGetValue(recipe.name, out var original))
+                {
+                    recipe.m_resources = original.resources;
+                    recipe.m_amount = original.amount;
+                    Logger.LogInfo($"Restored original recipe: {recipe.name}");
+                }
+            }
+        }
+
         #endregion
 
+        #region[Enums]
+        public enum BronzeAlloy
+        {
+            [Description("Default")]
+            Default = 0,
+            [Description("WoWlike")]
+            WoWlike,
+            [Description("Realistic")]
+            Realistic,
+            [Description("Custom")]
+            Custom
+        }
+        #endregion
     }
-
 }

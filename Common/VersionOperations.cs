@@ -1,11 +1,11 @@
 ﻿using System;
-
+using System.Reflection;
 using UnityEngine;
 
 using BepInEx;
 
 using Jotunn;
-
+using Jotunn.Utils;
 using Logger = Jotunn.Logger;
 
 namespace Common
@@ -67,8 +67,8 @@ namespace Common
 
             // vnum stores each numeric
             // part of version
-            int i = 0;
-            int j = 0;
+            int i;
+            int j;
             int vnum1 = 0;
             int vnum2 = 0;
 
@@ -116,27 +116,6 @@ namespace Common
         }
         #endregion
 
-        #region[GetEngineVersion]
-        /// <summary>
-        /// directly referencing of the unityVersion from Application
-        /// </summary>
-        /// <returns>
-        /// returns unityVersion
-        /// </returns>
-        public static string GetEngineVersion()
-        {
-
-            string engineVersionString = Application.unityVersion;
-
-#if (DEBUG)
-            Logger.LogInfo("Application.version = " + engineVersionString);
-#endif
-
-            return engineVersionString;
-
-        }
-        #endregion
-
         #region[GetGameVersion]
         /// <summary>
         /// directly referencing of the class Version from assembly_valheim.dll
@@ -147,13 +126,7 @@ namespace Common
         public static string GetGameVersion()
         {
 
-            string gameVersionString = Version.GetVersionString();
-
-#if (DEBUG)
-            Logger.LogInfo("Version.GetVersionString = " + gameVersionString);
-#endif
-
-            return gameVersionString;
+            return GameVersions.ValheimVersion.ToString();
 
         }
         #endregion
@@ -198,14 +171,7 @@ namespace Common
         public static string GetBepinExVersion()
         {
 
-
-            string bepinExVersiontring = BepInExVersion;
-
-#if (DEBUG)
-            Logger.LogInfo("BepInExVersion = " + bepinExVersiontring);
-#endif
-
-            return bepinExVersiontring;
+            return BepInExVersion;
 
         }
         #endregion
@@ -220,13 +186,7 @@ namespace Common
         public static string GetJotunnVersion()
         {
 
-            string JotunnVersiontring = Jotunn.Main.Version;
-
-#if (DEBUG)
-            Logger.LogInfo("Jotunn.Main.Version = " + JotunnVersiontring);
-#endif
-
-            return JotunnVersiontring;
+            return Jotunn.Main.Version;
 
         }
         #endregion
